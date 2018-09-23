@@ -146,28 +146,28 @@
           <div id="js-content" class="content-ll">
             
   
-    <article id="post-我的梦想是啥呢" class="article article-type-post  article-index" itemscope itemprop="blogPost">
+    <article id="post-masnory" class="article article-type-post  article-index" itemscope itemprop="blogPost">
   <div class="article-inner">
-    
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="article-title" href="/2018/01/30/我的梦想是啥呢/">我的梦想是啥呢</a>
-    </h1>
-  
-
-        
-        <a href="/2018/01/30/我的梦想是啥呢/" class="archive-article-date">
-  	<time datetime="2018-01-30T13:23:31.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2018-01-30</time>
-</a>
-        
-      </header>
     
     <div class="article-entry" itemprop="articleBody">
       
-        <p>我的梦想有点小。<br>不用上班，想干啥干啥。<br>有足够的钱，想学啥学啥。<br>世界各地四处溜达<br>不用只有在过年才回东北</p>
-<h2 id="不用只有在节假日才出去玩"><a href="#不用只有在节假日才出去玩" class="headerlink" title="不用只有在节假日才出去玩"></a>不用只有在节假日才出去玩</h2><p>努力工作确实能获得快乐，但是我始终觉得稻盛和夫的价值观，对我来说有些违和，这样的人生好像缺少了什么。没经历过的东西谁都不知道是好是坏。大多数人选择了枷锁，我选择自由。</p>
+        <p>###Masnory 不需要weakSelf<br>masnory中的block使用原理和UIView 动画中的block 以及 AFN 中的block 原理一样，block作为函数参数不会被copy，则认为self 没有强引用 block，block中引用self 也就不会造成循环引用。</p>
+<p>###Masnory 动画<br>在UIview 动画回调中直接更改Masnory约束是没有动画效果的<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">[UIView animateWithDuration:0.25 animations:^&#123;</span><br><span class="line">        [redView mas_updateConstraints:^(MASConstraintMaker *make) &#123;</span><br><span class="line">            make.width.mas_equalTo(width);</span><br><span class="line">        &#125;];</span><br><span class="line"> &#125;];</span><br></pre></td></tr></table></figure></p>
+<p>挂档的正确姿势<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">[redView mas_updateConstraints:^(MASConstraintMaker *make) &#123;</span><br><span class="line">        make.width.mas_equalTo(width);</span><br><span class="line"> &#125;];</span><br><span class="line"> [UIView animateWithDuration:5 animations:^&#123;</span><br><span class="line">        [self layoutIfNeeded];</span><br><span class="line"> &#125;];</span><br></pre></td></tr></table></figure></p>
+<p>或者这样<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">[UIView animateWithDuration:5 animations:^&#123;</span><br><span class="line">        [redView mas_updateConstraints:^(MASConstraintMaker *make) &#123;</span><br><span class="line">            make.width.mas_equalTo(width);</span><br><span class="line">        &#125;];</span><br><span class="line">        [self layoutIfNeeded];</span><br><span class="line"> &#125;];</span><br></pre></td></tr></table></figure></p>
+<p>可以看出挂档的关键点是 layoutIfNeed，苹果的官方文档这么形容</p>
+<blockquote>
+<p>Lays out the subviews immediately, if layout updates are pending.<br>Use this method to force the view to update its layout immediately. When using Auto Layout, the layout engine updates the position of views as needed to satisfy changes in constraints. Using the view that receives the message as the root view, this method lays out the view subtree starting at the root. If no layout updates are pending, this method exits without modifying the layout or calling any layout-related callbacks.</p>
+</blockquote>
+<p>大致就是说会立即约束子视图，也就是立即调用layoutSubviews 方法去从根视图（这个根视图就是调用layoutIfNeed 的视图，所以要调用self 的 layotIfNeed，而不是redView的layoutIfNeed）开始执行layoutSubviews，执行完根视图再去执行子视图的layoutSubviews，如果没有约束被标记更新，则不去调用任何视图的layoutSubviews方法。苹果在layoutSubview的文档中说不让直接调用，只能通过layoutIfNeed来主动调用。</p>
+<p>与layoutIfNeed形成鲜明对比的是setNeedsLayout</p>
+<blockquote>
+<p>Invalidates the current layout of the receiver and triggers a layout update during the next update cycle.</p>
+</blockquote>
+<p>#####大致含义：标记更新，但是不立即更新，在下一个更新循环中更新。<br>在Masnory修改约束过程中会自动调用setNeedsLayout 方法，来自动标记更新，等待RunLoop 自动刷新屏幕的时候才真正改变子视图的frame，而调用layoutIfNeed则直接改变子视图的frame，二者在显示上的差别可能只有零点零几秒，我们肉眼看不出差别，但是计算机动画的执行顺序就会不一样，先改变再动画就会有动画效果，先动画再改变就没有动画效果。这也就解释了为什么下面这种情况不能显示动画<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">[UIView animateWithDuration:0.25 animations:^&#123;</span><br><span class="line">        [redView mas_updateConstraints:^(MASConstraintMaker *make) &#123;</span><br><span class="line">            make.width.mas_equalTo(width);</span><br><span class="line">        &#125;];</span><br><span class="line"> &#125;];</span><br></pre></td></tr></table></figure></p>
+<p>因为在动画执行的时候只执行了setNeedslayout，并没有发生真正的改变，所以系统显示不变化，而在下一次系统刷新屏幕后，发现了被标记的约束改变就会执行layoutSubviews，但是此刻已经没有动画了。</p>
+<p>###Masnory实践篇 实现仿facebook 的点赞动画<br><img src="http://upload-images.jianshu.io/upload_images/2148470-6e5184497ff54ebd.gif?imageMogr2/auto-orient/strip" alt=""></p>
+<p>实践篇用masnory 实现仿照 facebook 的点赞动画。我写了一个小demo实现上图的效果。这里是<a href="https://github.com/1597538426/FaceBookAnimate">Demo</a></p>
 
       
 
@@ -176,185 +176,11 @@
     <div class="article-info article-info-index">
       
       
-	<div class="article-tag tagcloud">
-		<i class="icon-price-tags icon"></i>
-		<ul class="article-tag-list">
-			 
-        		<li class="article-tag-list-item">
-        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color3">随笔</a>
-        		</li>
-      		
-		</ul>
-	</div>
-
       
 
       
         <p class="article-more-link">
-          <a class="article-more-a" href="/2018/01/30/我的梦想是啥呢/">展开全文 >></a>
-        </p>
-      
-
-      
-      <div class="clearfix"></div>
-    </div>
-  </div>
-</article>
-
-<aside class="wrap-side-operation">
-    <div class="mod-side-operation">
-        
-        <div class="jump-container" id="js-jump-container" style="display:none;">
-            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
-                <i class="icon-font icon-back"></i>
-            </a>
-            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
-                <i class="icon-font icon-plane jump-plane"></i>
-            </div>
-        </div>
-        
-        
-    </div>
-</aside>
-
-
-
-
-  
-    <article id="post-反思" class="article article-type-post  article-index" itemscope itemprop="blogPost">
-  <div class="article-inner">
-    
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="article-title" href="/2018/01/25/反思/">反思</a>
-    </h1>
-  
-
-        
-        <a href="/2018/01/25/反思/" class="archive-article-date">
-  	<time datetime="2018-01-24T22:52:22.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2018-01-25</time>
-</a>
-        
-      </header>
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-        <p>最近发现了身边的人多多少少的都有变化，浩哥打喷嚏尽量多的用纸巾捂上，森林调接口也顺畅了很多，景通也柔和了许多。看来每个人都能意识到自己的问题。</p>
-<p>我以前总认为自己能意识到自己的问题，并勇于改正。现在却是发现了问题，但改起来好像很难。。</p>
-<p>玻璃心，不管是上司，还是女友，有一些不好的反应我就会玻璃心发作。这毛病不爷们。。</p>
-<p>拖延症：对公司的事很尽心，但是自己的计划总是完不成，这可不行。原因还是没有剧烈的渴望，和更明确的目标。不好意思被别人说，就很尽力的完成公司任务，但是一到了自己这里，没有人说，自己总为自己找借口。</p>
-
-      
-
-      
-    </div>
-    <div class="article-info article-info-index">
-      
-      
-	<div class="article-tag tagcloud">
-		<i class="icon-price-tags icon"></i>
-		<ul class="article-tag-list">
-			 
-        		<li class="article-tag-list-item">
-        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color3">随笔</a>
-        		</li>
-      		
-		</ul>
-	</div>
-
-      
-
-      
-        <p class="article-more-link">
-          <a class="article-more-a" href="/2018/01/25/反思/">展开全文 >></a>
-        </p>
-      
-
-      
-      <div class="clearfix"></div>
-    </div>
-  </div>
-</article>
-
-<aside class="wrap-side-operation">
-    <div class="mod-side-operation">
-        
-        <div class="jump-container" id="js-jump-container" style="display:none;">
-            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
-                <i class="icon-font icon-back"></i>
-            </a>
-            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
-                <i class="icon-font icon-plane jump-plane"></i>
-            </div>
-        </div>
-        
-        
-    </div>
-</aside>
-
-
-
-
-  
-    <article id="post-想在未来开一个淘宝店" class="article article-type-post  article-index" itemscope itemprop="blogPost">
-  <div class="article-inner">
-    
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="article-title" href="/2018/01/06/想在未来开一个淘宝店/">想在未来开一个淘宝店</a>
-    </h1>
-  
-
-        
-        <a href="/2018/01/06/想在未来开一个淘宝店/" class="archive-article-date">
-  	<time datetime="2018-01-06T12:00:50.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2018-01-06</time>
-</a>
-        
-      </header>
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-        <p>2018年我最大的目标是要开一家淘宝店，前期应该是主营男装的。初步建立以个人ip为核心，运营，策划为辅助，从而实现淘宝店铺地盈利。</p>
-<blockquote>
-<p>目前存在的问题<br>目前存在的主要问题是没有形成个人ip，所以近期3个月左右的时间，要以个人提升为主。</p>
-<p>目前对于淘宝运营懂得很少，货源筛选等待进行</p>
-</blockquote>
-<p>###解决方案</p>
-<blockquote>
-<p>近三个月左右 要做的提升自己的任务<br>1.米兰欧线上课程（笔记总结）<br>2.按照荔枝微课购买的健身课程去健身房（笔记总结，拍照记录分享）<br>3.个人穿搭练习增加（拍照记录）</p>
-</blockquote>
-<p>###平台选择</p>
-<blockquote>
-<p>考虑了一段时间，确立了以淘宝为销售中心，微信好友，微信公众号为主要运营渠道的发展路线，中期会加入微博。</p>
-</blockquote>
-
-      
-
-      
-    </div>
-    <div class="article-info article-info-index">
-      
-      
-	<div class="article-tag tagcloud">
-		<i class="icon-price-tags icon"></i>
-		<ul class="article-tag-list">
-			 
-        		<li class="article-tag-list-item">
-        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color5">我的时尚</a>
-        		</li>
-      		
-		</ul>
-	</div>
-
-      
-
-      
-        <p class="article-more-link">
-          <a class="article-more-a" href="/2018/01/06/想在未来开一个淘宝店/">展开全文 >></a>
+          <a class="article-more-a" href="/2018/03/25/masnory/">展开全文 >></a>
         </p>
       
 
@@ -545,6 +371,199 @@
 
 
   
+    <article id="post-NSURLCache" class="article article-type-post  article-index" itemscope itemprop="blogPost">
+  <div class="article-inner">
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2017/10/23/NSURLCache/">使用NSURLCache做AFN和NSURLSession的缓存</a>
+    </h1>
+  
+
+        
+        <a href="/2017/10/23/NSURLCache/" class="archive-article-date">
+  	<time datetime="2017-10-23T00:00:30.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2017-10-23</time>
+</a>
+        
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p><img src="http://upload-images.jianshu.io/upload_images/2148470-1c0fe788b75bc995.jpeg?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt="图片源于网络"><br>最近使用NSUrlCache做网络缓存，感觉比之前自己建立数据库来缓存这些数据要简单的多，自己建立的数据库机制十分简陋，而是用系统提供的NSUrlCache 则更全面而稳定。我们不用费心去管理内存过大导致崩溃，也不用去管设置了固定容量之后新的返回值不能被缓存。</p>
+<p>值得注意的是只有get 方法才会产生缓存，而post方法不会产生缓存，但是这个几乎没有什么影响，因为post的方法多用于上传，和修改等接口，没有缓存的必要。</p>
+<p>使用这个方法可以整体设置 内存容量和硬盘容量以及存储位置。<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">NSURLCache *urlCache = [[NSURLCache alloc] initWithMemoryCapacity:4 * 1024 * 1024 diskCapacity:20 * 1024 * 1024 diskPath:nil];</span><br><span class="line">[NSURLCache setSharedURLCache:urlCache];</span><br></pre></td></tr></table></figure></p>
+<p>这段代码可以放到AppDelegate中，在程序启动时就设置好，其实这段代码都是默认值，如果不需要改变缓存的大小及位置，则不需要写这段代码，默认位置存储在<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">(user home directory)/Library/Caches/(application bundle id)</span><br></pre></td></tr></table></figure></p>
+<p>这个路径下，会生成一个数据库文件，如图所示。</p>
+<p><img src="http://upload-images.jianshu.io/upload_images/2148470-fc66e71c1dbb58f3.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt="默认存储路径"><br><a href="http://blog.csdn.net/fishmai/article/details/60127023" target="_blank" rel="noopener">这篇文章</a> 对Cache.db 进行了很好的分析。</p>
+<p>####四种缓存策略</p>
+<blockquote>
+<p>NSURLRequestReloadIgnoringLocalCacheData： 忽略缓存，必须从远程地址下载；<br>NSURLRequestReturnCacheDataElseLoad：只要本地有缓存就使用本地的缓存（不管过期时间），只有本地没有缓存的时候才使用远程地址下载；<br>NSURLRequestReturnCacheDataDontLoad：只从本地缓存获取内容，如果本地没有的话，也不会去远程地址下载（也就是离线模式）；<br>NSURLRequestUseProtocolCachePolicy：默认缓存策略；</p>
+</blockquote>
+<p>####NSURLSession缓存设置<br>第一种直接url 访问<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">- (NSURLSessionDataTask *)dataTaskWithURL:(NSURL *)url completionHandler:(void (^)(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error))completionHandler</span><br></pre></td></tr></table></figure></p>
+<p>这里不能对该 url 的 request 进行设置，缓存也使用的是默认缓存策略NSURLRequestUseProtocolCachePolicy。</p>
+<p>第二种 request 访问<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request completionHandler:(void (^)(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error))completionHandler;</span><br></pre></td></tr></table></figure></p>
+<p>这种方法可以通过生成request，来设置这个URL 特有的缓存策略，例如：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">NSURLRequest * request = [NSURLRequest requestWithURL:url cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:10];</span><br><span class="line">``` </span><br><span class="line">####AFNetworking 缓存设置</span><br><span class="line">AFNetworking 使用 sessioManager 来进行网络访问，代码如下</span><br><span class="line">``` </span><br><span class="line">AFHTTPSessionManager * manager = [AFHTTPSessionManager manager];</span><br><span class="line">manager.responseSerializer.acceptableContentTypes = [NSSet setWithObject:@&quot;text/html&quot;];</span><br><span class="line">manager.responseSerializer = [AFHTTPResponseSerializer serializer];</span><br><span class="line">[manager.requestSerializer setCachePolicy:NSURLRequestReturnCacheDataElseLoad];</span><br><span class="line">[manager GET:@&quot;http://www.jianshu.com/p/88719de97921&quot; parameters:nil progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) &#123;</span><br><span class="line">        NSLog(@&quot;请求成功&quot;);</span><br><span class="line">    &#125; failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) &#123;</span><br><span class="line">        NSLog(@&quot;请求失败&quot;);</span><br><span class="line">    &#125;];</span><br><span class="line">``` </span><br><span class="line">主要可以通过这段代码来设置缓存策略</span><br><span class="line">``` </span><br><span class="line">[manager.requestSerializer setCachePolicy:(NSURLRequestCachePolicy)];</span><br><span class="line">``` </span><br><span class="line"></span><br><span class="line"></span><br><span class="line">####NSURLSession 和 AFNetworking 缓存的对比</span><br><span class="line">##### 区别</span><br><span class="line">虽然 AFNetworking 本质上也是使用 NSURLSession 来进行网络访问，但是测试过发现其返回结果还是有区别的，NSURLSession 的方法默认都是采用 NSURLRequestUseProtocolCachePolicy：默认缓存策略，在无网络的情况下如果有缓存，error 会返回nil，data 则返回上一次缓存的data。</span><br><span class="line">而AFNetworking 在NSURLRequestUseProtocolCachePolicy 这个默认缓存策略下，无网络且有缓存的情况下 并不会进入 success 回调，而是进入 failure 回调，原因还需要探索一下。</span><br><span class="line">##### 相同点</span><br><span class="line">NSURLRequestReturnCacheDataElseLoad（只要本地有缓存就使用本地的缓存（不管过期时间），只有本地没有缓存的时候才使用远程地址下载；）在这种缓存策略下，并且有缓存的情况下，AFN 无论是否断网都会进入 success 回调，NSURLSession 回调中 error 也会为nil。</span><br><span class="line"></span><br><span class="line">#### 缓存过期机制</span><br><span class="line">最有效率的缓存是只有在服务端数据发生变化时，或者超过了服务器设置的缓存超时时间，才会去再次服务端请求数据。</span><br><span class="line"></span><br><span class="line">首先，要设置成</span><br></pre></td></tr></table></figure></p>
+<p>NSURLRequestUseProtocolCachePolicy：默认缓存策略<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">其次就需要服务端的设置，主要是在响应头中设置 Cache-Control </span><br><span class="line">&gt;Cache-Control</span><br><span class="line">这个头必须由服务器端指定以开启客户端的 HTTP 缓存功能。这个头的值可能包含 max-age（缓存多久），是公共 public,还是私有 private,或者不缓存 no-cache等信息。详情请参阅 [Cache-Control section of RFC 2616](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.9)。</span><br><span class="line"></span><br><span class="line">除了 Cache-Control以外，服务器也可能发送一些附加的头用于根据需要有条件地请求：</span><br><span class="line"></span><br><span class="line">&gt;Last-Modified 顾名思义，是资源最后修改的时间戳，往往与缓存时间进行对比来判断缓存是否过期</span><br><span class="line"></span><br><span class="line">&gt;ETag用于放置文件的唯一标识，比如文件MD5值。</span><br><span class="line"></span><br><span class="line">对于最常用的 NSURLRequestUseProtocolCachePolicy， 我们需要有两个注意的地方，即使当一个请求在本地存在缓存的情况下，如果这个请求需要重新验证，那系统还是会发起一个 HEAD 请求到服务器上去确定内容是否已经被修改过，如果修改的话还是会重新下载；如果缓存内容不需要验证，那系统只需要确定缓存时间是不是已经过期就可以了。</span><br><span class="line"></span><br><span class="line">####不使用缓存策略</span><br><span class="line">如果觉得缓存策略不太满意，可以将缓存策略设置成这个：</span><br></pre></td></tr></table></figure></p>
+<p>NSURLRequestReloadIgnoringLocalCacheData 忽略本地缓存，只从服务端获取<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">从服务端获取成功之后，会产生缓存。然后使用NSURLResponse 来取出某个 Request 对应的本地缓存，自己判断什么时候从服务端获取，什么时候读取本地缓存，就当作一个单独的数据库来使用。</span><br></pre></td></tr></table></figure></p>
+<p>NSCachedURLResponse *response = [cache cachedResponseForRequest:request];<br>```</p>
+<p>####推荐文章</p>
+<ul>
+<li>adow很好的一篇博客 <a href="http://codingnext.com" target="_blank" rel="noopener">被忽视的 NSURLCache</a></li>
+<li>adow另一篇很好的博客 <a href="http://codingnext.com/nsurlcache.html" target="_blank" rel="noopener">说说 NSURLCache 中的那些坑</a></li>
+<li><a href="http://nshipster.cn/authors/mattt-thompson/" target="_blank" rel="noopener">Mattt Thompson</a>撰写、 <a href="http://nshipster.cn/translators/ricky-tan/" target="_blank" rel="noopener">Ricky Tan</a> 翻译的 <a href="http://nshipster.cn/nsurlcache/" target="_blank" rel="noopener">NSURLCacahe</a></li>
+<li><a href="http://www.jianshu.com/p/fb5aaeac06ef" target="_blank" rel="noopener">网络缓存扫盲</a></li>
+</ul>
+
+      
+
+      
+    </div>
+    <div class="article-info article-info-index">
+      
+      
+	<div class="article-tag tagcloud">
+		<i class="icon-price-tags icon"></i>
+		<ul class="article-tag-list">
+			 
+        		<li class="article-tag-list-item">
+        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color4">iOS</a>
+        		</li>
+      		
+		</ul>
+	</div>
+
+      
+
+      
+        <p class="article-more-link">
+          <a class="article-more-a" href="/2017/10/23/NSURLCache/">展开全文 >></a>
+        </p>
+      
+
+      
+      <div class="clearfix"></div>
+    </div>
+  </div>
+</article>
+
+<aside class="wrap-side-operation">
+    <div class="mod-side-operation">
+        
+        <div class="jump-container" id="js-jump-container" style="display:none;">
+            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
+                <i class="icon-font icon-back"></i>
+            </a>
+            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
+                <i class="icon-font icon-plane jump-plane"></i>
+            </div>
+        </div>
+        
+        
+    </div>
+</aside>
+
+
+
+
+  
+    <article id="post-《这世界既残酷也温柔》一个从一无所有到财富自由的90后独白" class="article article-type-post  article-index" itemscope itemprop="blogPost">
+  <div class="article-inner">
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2017/10/15/《这世界既残酷也温柔》一个从一无所有到财富自由的90后独白/">《这世界既残酷也温柔》 一个财富自由的90后独白</a>
+    </h1>
+  
+
+        
+        <a href="/2017/10/15/《这世界既残酷也温柔》一个从一无所有到财富自由的90后独白/" class="archive-article-date">
+  	<time datetime="2017-10-15T12:12:30.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2017-10-15</time>
+</a>
+        
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p><img src="http://upload-images.jianshu.io/upload_images/2148470-9a084fdefd06ff42.jpg?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt="图片源于网络"></p>
+<p>第一次知道孙宇晨是收听了喜马拉雅上的一档音频节目《 财富自由革命之路》，不知不觉已经听了这个节目一年了，在了解了他的观念和想法之后，觉得他能取得这些成绩似乎也变成了必然事件，下面是百度百科对他的介绍</p>
+<blockquote>
+<p>孙宇晨，1990年生，美国常青藤盟校宾夕法尼亚大学硕士，北京大学学士。移动社交应用陪我APP创始人兼CEO，锐波创始人兼CEO，《财富自由革命之路》发起人。<br>2011年亚洲周刊封面人物， 2014年达沃斯论坛全球杰出青年，2015年福布斯中国30位30岁以下创业者。2015 CNTV中国互联网年度新锐人物，2015年，成为马云创办的湖畔大学首批学员中唯一90后学员。2017年福布斯亚洲30位30岁以下创业者。</p>
+</blockquote>
+<p>成功的经历背后总有一些辛酸与付出，孙宇晨也不例外。高二的时候只是一个三本成绩的学生，高三明确了去北大的目标，在很多人的嘲笑下，一年时间实现了逆袭。为了去美国，申请提前一年从北大毕业，当一天即使用20小时也完成不了学习任务时，他几次想认怂延期毕业。早期美国创业拉着为了理想可以不要工资的30个人拍摄视频，两年时间视频点击量才突破一千万。回国创业找了30个投资人，没有一个愿意见他。他的第一桶金是靠投资特斯拉和比特币来的，虽然对于区块链技术和特斯拉有着强烈的自信，但是比特币的几次大跌差点让他倾家荡产。陪我app创立初期赚不到钱，为了维持公司正常运营自掏腰包400万才挺过了难关。听说马云要办湖畔大学，在公司草创阶段就敢于申请加入。</p>
+<p>孙宇晨比大多数同龄人要更早的形成了自己的一套人生观、价值观体系，对于90后来说有很大的参考价值，书中观点较多，只能选取其中的一部分来进行分析。</p>
+<p>####正视和父母的关系<br><img src="http://upload-images.jianshu.io/upload_images/2148470-d97db5453f69c45f.jpg?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt="图片源于网络"><br>子女和父母之间不应该存在任何兜底的关系，就是不管你多么的差，父母都会给你想办法，这些无谓的帮助很大程度上减少了子女通过自身努力取得成就的可能性，有的父母费尽心思找了一个关系可以让子女用二本线的成绩上985大学，可子女知道后对学习有所懈怠反而没考出二本的成绩。新闻上一个儿子因为不满意自己的婚房对父母大打出手。甚至还有一位母亲为了满足儿子富二代的梦想，去卖自己的肾。除了这些极端的例子对子女产生了不好的影响，不难发现，在生活中许多能力强的家长几乎控制了子女所有的人生路线，上学，工作，结婚早早的被安排好。而这些强势父母的子女，偏偏没有他们父母那样的强势，反而很低调，内敛，缺乏奋斗的动力，享受在父母的安排中红利当中不能自拔。</p>
+<p>同理 子女也不应该给父母兜底，最合适的例子莫过于《欢乐颂》中樊胜美的老娘，一次次没有底线的要钱，让这个在上海奋斗几年的姑娘几乎连积蓄都没有，这里并不是让自子女对老人不管不顾，而是要有底线。对于那些不合理的要求，要告知父母自己的底线，因为我们有自己的生活，需要去消费，去投资，去拥有更好的生活。</p>
+<p>父母是我们最亲的人，他们将我们带到这个世界上，他们抚养我们成长，用自己的阅历去给我们建议，但是，作为一个独立的个体，我们要今早摆脱父母经济上的资助，因为资助总伴随着控制。我们的父母生活在工业时代，甚至农业时代，他们的人生轨迹在如今的互联网时代参考价值非常有限，只有自己实践过，自己体会过，才会有正真的价值，相信自己比相信任何人都可靠，不要盲目听父母的话，要超越他们。</p>
+<p>####90后的新财富价值观</p>
+<p><img src="http://upload-images.jianshu.io/upload_images/2148470-9aef416fd7176173.jpg?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt="孙宇晨，图片源于网络"></p>
+<p>孙宇晨一直倡导30岁之前，不买房，不买车，不结婚。现在绝大多数人，在20～30岁这段学习能力最强，精力最强，迫力最强的10年，并没有将精力用于个人提升，自我成长，也没有用于拓宽思维，提升素养，更没有用于改变行业，改变社会，改变国家，而是迅速妥协找一份得过且过，收入很低，投入到买房买车就、结婚养娃的传宗接代的大业之中。</p>
+<p>他建议初入职场的年轻人尽量推迟买房时间，或者干脆不买房子，当然如果你有钱买房子无可厚非，但是如果刚入职场的年轻人强行买房，承担一套房子的首付和月供可以轻易摧毁一个年轻人的梦想，并将整个家庭裹挟进来。可笑的是很多年轻人的梦想就是拥有一个房子。书中提出，未来五年，北上广深杭等一线城市的房价还是一个年收益10%-15%的投资品，曾经哪个10年增长10被的黄金房地产时代已经过去了。任何一个选择互联网方向的年轻人，实现自身一年50%的增长都不是难事。<br>对于汽车这类投入成本高，折旧快的资产尽量选择共享经济，节目里孙宇晨提过，他购买了8万元的滴滴打车券，节省开车，养车，停车等各种不必要的消耗，能够更大限度的提升自身的自由与空间。我们必须知道，在这个时代，除了自己，真的没有什么别的东西更值得投资。</p>
+<p>结婚对于每个人来说都是一个终身大事，要用心的去寻找自己的另一半，一段健康的婚姻一定是源于爱情，并且不会损害任何一方热爱的事业，两个人共同进步，处理不好家庭的问题，不仅无法让自己走的更稳，反而让两个人都跌落深渊。与爱人相处时，要明确婚姻不应损害任何一方事业和人格上的自由，结婚是为了让两个人更强大，而不是相互损害。</p>
+<p>####网红的力量<br><img src="http://upload-images.jianshu.io/upload_images/2148470-ad0e97a14dad4bff.jpeg?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt="雪梨，图片源于网络"></p>
+<p>在2015年网红现象初露端倪，张大奕，雪梨等以微博为基础的“淘宝网红”崭露头角，如今的雪梨身家早已过亿，2016直播大火，让一批主播踏入了千万富翁的行列，五五开，冯提莫，天佑，等各式各样的主播通过自己独有的特质，获得了一众粉丝们的热爱。还有一些社群，例如喜马拉雅，得道app，通过一些列只是付费的方式让一些有专业知识的主播火了一把，孙宇晨就是其中一位。网易云音乐中的一些有能力创作歌手也通过发布自己的歌曲从而为人所知。</p>
+<p>“网红”是一个平等的产物，平等意味这人人都可以自赋权威，人人都可以成为中心，只要你拥有魅力人格体，拥有社群与粉丝。这里没有复杂的审批，没有过高的门槛，没有各种歧视。我们可以清晰的预见，这个时代，将会有越来越多的人通过展示自我，出售自身技能，表达自我的想法，组织自己的节目来获得财富，获得认可，过上自己想要的生活。</p>
+<p>####重构自己的思维</p>
+<p><img src="http://upload-images.jianshu.io/upload_images/2148470-191c4f73c2ee5dba.jpg?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt="图片源于网络"></p>
+<p>本书名之所以叫做《这世界既残酷也温柔》，是因为在孙宇晨看来，这世界是残酷的，因为它只看结果，即使一个人再努力，也只能被廉价的自我感动蒙蔽双眼；这世界又是温柔的，因为飞速发展的互联网时代承认每个人的价值，给力每个人自由的，独立的，不被他人束缚的实现梦想的机会。所以我们要树立以目标为导向的思维模式，月目标分解为周目标将周目标分解成日目标，不断的实现目标，总会感受到世界的温柔。</p>
+<p>书中提到“穷人思维”和“富人思维”这两个经常被提及的概念，孙宇晨认为穷人思维就是单变量思维，而富人则是多变量思维，举个例子，穷人思维会认为王思聪成功就是因为他爹有钱，而富人思维则会从，他不仅具有启动资金，而且对电竞行业，网红行业理解深刻，从本质看到他成功的原因。穷人思维在看到一个可望实现却相对遥远的目标时，首先想到的是我一辈子都到不了这种程度，而富人思维则会想到底如何做才能实现这个目标。<br>是穷人还是富人，核心在思维。拥有富人的思维，哪怕是一贫如洗，也前途远大；拥有穷人思维的人，就算腰缠万贯，也毫无发展。</p>
+<p>####孙宇晨对于财富自由的理解<br>财富自由是一种精神理解状态，其背后有着异常复杂的纵深，除了对财富的正确理解，还包括对人类社会的清洗洞察，对行业的深刻理解，对人性的精确体察。<br>一些人中了彩票，挥霍无度，不仅钱在一段时间后花光了，健康也受到了极大的危害，每天吃喝玩乐是很多人的理想，但是一段时间之后可能就被空虚填满。只有理解了财富自由的真谛，脚踏实地，才能真正的实现财富自由。<br>总而言之，财富自由是一种生活方式、精神信仰，是一种值得捍卫的世界观与价值观。</p>
+
+      
+
+      
+    </div>
+    <div class="article-info article-info-index">
+      
+      
+	<div class="article-tag tagcloud">
+		<i class="icon-price-tags icon"></i>
+		<ul class="article-tag-list">
+			 
+        		<li class="article-tag-list-item">
+        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color5">读书笔记</a>
+        		</li>
+      		
+		</ul>
+	</div>
+
+      
+
+      
+        <p class="article-more-link">
+          <a class="article-more-a" href="/2017/10/15/《这世界既残酷也温柔》一个从一无所有到财富自由的90后独白/">展开全文 >></a>
+        </p>
+      
+
+      
+      <div class="clearfix"></div>
+    </div>
+  </div>
+</article>
+
+<aside class="wrap-side-operation">
+    <div class="mod-side-operation">
+        
+        <div class="jump-container" id="js-jump-container" style="display:none;">
+            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
+                <i class="icon-font icon-back"></i>
+            </a>
+            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
+                <i class="icon-font icon-plane jump-plane"></i>
+            </div>
+        </div>
+        
+        
+    </div>
+</aside>
+
+
+
+
+  
   
 
 
@@ -630,11 +649,15 @@ return o(i(t),arguments.length<2?void 0:u(arguments[1]))}})},function(t,n,r){var
           <ul class="article-tag-list" q-show="showTags">
              
               <li class="article-tag-list-item">
-                <a href="javascript:void(0)" class="js-tag color3">随笔</a>
+                <a href="javascript:void(0)" class="js-tag color4">iOS</a>
               </li>
              
               <li class="article-tag-list-item">
-                <a href="javascript:void(0)" class="js-tag color5">我的时尚</a>
+                <a href="javascript:void(0)" class="js-tag color5">读书笔记</a>
+              </li>
+             
+              <li class="article-tag-list-item">
+                <a href="javascript:void(0)" class="js-tag color3">随笔</a>
               </li>
             
             <div class="clearfix"></div>
